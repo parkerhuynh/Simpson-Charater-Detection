@@ -139,11 +139,6 @@ def create_callbacks(epoch_num, epoch_warmup, sample_count, totak_batch_size, le
         save_best_only=True,
         mode='max',
     )
-    wandb_callback = WandbCallback(
-        save_model=False,
-        log_best_prefix="best_",
-        monitor="val_accuracy"
-    )
     total_steps = int(epoch_num * sample_count / totak_batch_size)
     warmup_steps = int(epoch_warmup * sample_count / totak_batch_size)
     warm_up_lr = WarmUpCosineDecayScheduler(learning_rate_base=learning_rate_base,
@@ -151,11 +146,11 @@ def create_callbacks(epoch_num, epoch_warmup, sample_count, totak_batch_size, le
                                             warmup_learning_rate=0.0,
                                             warmup_steps=warmup_steps,
                                             hold_base_rate_steps=0)
-    return [checkpoint, warm_up_lr, wandb_callback]
+    return checkpoint
 
 
 def main(args):
-    num_gpu = len(tf.config.list_physical_devices('GPU'))
+    num_gpu = num_gpu = len(tf.config.list_physical_devices('GPU'))
     config = {
         "run_date": args.run_date,
         "hashcode": args.hashcode,
@@ -164,7 +159,6 @@ def main(args):
         "num_gpu": num_gpu,
         "image_size": image_size
     }
-    wandb.init(project="sim", config=config)
 
     # Create an image generator with a fraction of images reserved for validation:
     train_dataframe = pd.read_csv("../data/train.csv")
@@ -220,19 +214,19 @@ def main(args):
 
     # Create the model
     with strategy.scope():
-        model = tf.keras.applications.DenseNet121(
-            include_top=True,
-            weights=None,
+        base_model = tf.keras.applications.DenseNet121(
+            include_top=False,
+            weights="imagenet",
             input_tensor=None,
             input_shape=(image_size, image_size, 3),
             pooling=None,
             classes=num_classes
         )
-
+        model = tf.keras.Sequential()
+        model.add(base_model)
         model.compile(optimizer="adam",
                       loss='CategoricalCrossentropy',
                       metrics=['accuracy'])
-        model.load_weights("../pretrain/model.h5", by_name=True)
         model.summary()
 
     # Train the model
@@ -242,10 +236,6 @@ def main(args):
         callbacks=create_callbacks(epoch_num, epoch_warmup, len(train_dataframe), batch_size * num_gpu, lr_base),
         validation_data=dev_generator,
     )
-
-    train_preds = model.predict(dev_generator)
-    np.save("dev_preds.npy", train_preds)
-    wandb.save("dev_preds.npy")
 
 
 if __name__ == "__main__":
