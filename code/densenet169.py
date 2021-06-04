@@ -3,9 +3,7 @@ import tensorflow as tf
 from keras.preprocessing.image import ImageDataGenerator, DirectoryIterator
 import pandas as pd
 import argparse
-import wandb
 import numpy as np
-from wandb.keras import WandbCallback
 from tensorflow.keras import backend as K
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 
@@ -154,7 +152,6 @@ def main(args):
     config = {
         "run_date": args.run_date,
         "hashcode": args.hashcode,
-        "pretrain": args.pretrain,
         "batch_size": batch_size * num_gpu,
         "num_gpu": num_gpu,
         "image_size": image_size
@@ -224,6 +221,10 @@ def main(args):
         )
         model = tf.keras.Sequential()
         model.add(base_model)
+        model.add(layers.Flatten())
+        model.add(layers.Dense(256, activation='relu'))
+        model.add(layers.Dropout(0.7))
+        model.add(layers.Dense(20, activation='softmax'))
         model.compile(optimizer="adam",
                       loss='CategoricalCrossentropy',
                       metrics=['accuracy'])
@@ -242,6 +243,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--run-date', type=str)
     parser.add_argument('--hashcode', type=str)
-    parser.add_argument('--pretrain', type=str)
     args = parser.parse_args()
     main(args)
